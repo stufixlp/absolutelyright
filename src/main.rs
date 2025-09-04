@@ -11,7 +11,7 @@ use tower_http::services::ServeDir;
 use tokio_rusqlite::Connection;
 use std::fs::OpenOptions;
 use std::io::Write;
-use chrono::Local;
+use chrono::Utc;
 use std::env;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -73,7 +73,7 @@ async fn main() {
 async fn get_today(
     state: axum::extract::State<Arc<Connection>>,
 ) -> Json<HashMap<&'static str, u32>> {
-    let today = chrono::Local::now().format("%Y-%m-%d").to_string();
+    let today = Utc::now().format("%Y-%m-%d").to_string();
     
     let (count, right_count) = state
         .call(move |conn| {
@@ -166,7 +166,7 @@ async fn log_pageview(
     
     // Only log GET requests to main page
     if method == "GET" && (path == "/" || path == "/index.html") {
-        let timestamp = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+        let timestamp = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
         let log_entry = format!("{} - Pageview: {}\n", timestamp, path);
         
         // Append to log file - use /app/data on Fly.io, local file otherwise

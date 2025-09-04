@@ -104,7 +104,10 @@ function drawChart(history) {
 		: { top: 40, right: 60, bottom: 60, left: 100 };
 	const chartWidth = w - padding.left - padding.right;
 	const chartHeight = h - padding.top - padding.bottom;
-	const max = Math.max(...history.map((d) => d.count)) || 10;
+	// Calculate max from both counts
+	const maxAbsolute = Math.max(...history.map((d) => d.count)) || 0;
+	const maxRight = Math.max(...history.map((d) => d.right_count || 0)) || 0;
+	const max = Math.max(maxAbsolute, maxRight, 10);
 	const stepX = chartWidth / (history.length - 1 || 1);
 
 	// Initialize rough.js
@@ -150,15 +153,36 @@ function drawChart(history) {
 	);
 	svg.appendChild(yAxis);
 
-	// Prepare data points
+	// Prepare data points for both lines
 	const points = history.map((d, i) => ({
 		x: padding.left + i * stepX,
 		y: padding.top + chartHeight - (d.count / max) * chartHeight,
+		yRight: padding.top + chartHeight - ((d.right_count || 0) / max) * chartHeight,
 		count: d.count,
+		rightCount: d.right_count || 0,
 		day: d.day,
 	}));
 
-	// Draw the main line with hand-drawn style
+	// Draw the "just right" line (lighter, thinner) first
+	if (points.length > 1 && points.some(p => p.rightCount > 0)) {
+		for (let i = 0; i < points.length - 1; i++) {
+			const line = rc.line(
+				points[i].x,
+				points[i].yRight,
+				points[i + 1].x,
+				points[i + 1].yRight,
+				{
+					stroke: "#ffc6c7",  // Light pink
+					strokeWidth: 2,
+					roughness: 1.2,
+					bowing: 0.6,
+				},
+			);
+			svg.appendChild(line);
+		}
+	}
+
+	// Draw the main "absolutely right" line on top
 	if (points.length > 1) {
 		for (let i = 0; i < points.length - 1; i++) {
 			const line = rc.line(
@@ -177,7 +201,23 @@ function drawChart(history) {
 		}
 	}
 
-	// Draw data points as sketchy circles
+	// Draw data points for "just right" line (if there's data)
+	if (points.some(p => p.rightCount > 0)) {
+		points.forEach((point) => {
+			if (point.rightCount > 0) {
+				const circleRight = rc.circle(point.x, point.yRight, 8, {
+					stroke: "#ffc6c7",
+					strokeWidth: 1.5,
+					fill: "#ffffff",
+					fillStyle: "solid",
+					roughness: 1,
+				});
+				svg.appendChild(circleRight);
+			}
+		});
+	}
+
+	// Draw data points for "absolutely right" line
 	points.forEach((point) => {
 		const circle = rc.circle(point.x, point.y, 10, {
 			stroke: "#e63946",
@@ -188,7 +228,7 @@ function drawChart(history) {
 		});
 		svg.appendChild(circle);
 
-		// Add hover area for tooltip
+		// Add hover area for tooltip showing both counts
 		const hoverCircle = document.createElementNS(
 			"http://www.w3.org/2000/svg",
 			"circle",
@@ -203,7 +243,11 @@ function drawChart(history) {
 			"http://www.w3.org/2000/svg",
 			"title",
 		);
-		title.textContent = `${point.day}: ${point.count}`;
+		let tooltipText = `${point.day}\nAbsolutely right: ${point.count}`;
+		if (point.rightCount > 0) {
+			tooltipText += `\nJust right: ${point.rightCount}`;
+		}
+		title.textContent = tooltipText;
 		hoverCircle.appendChild(title);
 
 		svg.appendChild(hoverCircle);
