@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Absolutely Right!</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Kalam:wght@400;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <main>
+    <h1>Claude Code said I'm <span class="highlight">absolutely right!</span></h1>
+    <div id="today" class="today-count" style="opacity: 0">0</div>
+    <p class="subtitle" style="opacity: 0">times today</p>
+    <p id="right-count" class="right-count"></p>
+
+    <section class="chart-section">
+      <h2>Count History</h2>
+      <svg id="chart"></svg>
+    </section>
+  </main>
+  <footer>
+    <p>made with <span class="wiggle">imposter syndrome</span> by <a href="https://github.com/yoavf" target="_blank">@yoavf</a> • <a href="https://github.com/yoavf/absolutelyright" target="_blank">github</a></p>
+  </footer>
+   <script type="module" src="frontend.js"></script>
+</body>
+</html>
