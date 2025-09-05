@@ -67,7 +67,6 @@ async function fetchHistory() {
 			history.sort((a, b) => a.day.localeCompare(b.day));
 		}
 
-		console.log("History data:", history);
 		currentHistory = history; // Store for resize
 		drawChart(history);
 	} catch (error) {
@@ -112,10 +111,6 @@ function drawChart(history) {
 		};
 	});
 
-	console.log('Creating chart with data:', data);
-
-	// Use roughViz for stacked bar chart - simpler config based on docs
-	console.log('roughViz available?', typeof roughViz !== 'undefined');
 	if (typeof roughViz === 'undefined') {
 		console.error('roughViz library not loaded!');
 		return;
@@ -127,7 +122,7 @@ function drawChart(history) {
 		labels: 'date',
 		width: width,
 		height: height,
-		colors: ['#e63946', '#ffc6c7'],
+		highlight: ['coral', 'skyblue'],
 		roughness: 1.5,
 		font: 'Gaegu',
 		xLabel: '',
