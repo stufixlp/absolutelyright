@@ -1,19 +1,19 @@
 use axum::{
-    routing::{get, post},
-    Router, Json,
+    http::{header, HeaderValue, Request},
     middleware,
-    http::{Request, header, HeaderValue},
     response::Response,
+    routing::{get, post},
+    Json, Router,
 };
+use chrono::Utc;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, net::SocketAddr, sync::Arc};
-use tower_http::services::ServeDir;
-use tower_http::set_header::SetResponseHeaderLayer;
-use tokio_rusqlite::Connection;
+use std::env;
 use std::fs::OpenOptions;
 use std::io::Write;
-use chrono::Utc;
-use std::env;
+use std::{collections::HashMap, net::SocketAddr, sync::Arc};
+use tokio_rusqlite::Connection;
+use tower_http::services::ServeDir;
+use tower_http::set_header::SetResponseHeaderLayer;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 struct DayCount {
@@ -60,8 +60,10 @@ async fn main() {
         .route("/api/history", get(get_history))
         .route("/api/set", post(set_day))
         // Serve static files from ./frontend with cache control headers
-        .nest_service("/", ServeDir::new("frontend")
-            .append_index_html_on_directories(true))
+        .nest_service(
+            "/",
+            ServeDir::new("frontend").append_index_html_on_directories(true),
+        )
         .layer(SetResponseHeaderLayer::overriding(
             header::CACHE_CONTROL,
             HeaderValue::from_static("no-cache, no-store, must-revalidate"),
@@ -78,7 +80,7 @@ async fn main() {
         .with_state(db);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], 3003));
-    println!("listening on http://{}", addr);
+    println!("listening on http://{addr}");
     axum::serve(tokio::net::TcpListener::bind(addr).await.unwrap(), app)
         .await
         .unwrap();
@@ -88,16 +90,19 @@ async fn get_today(
     state: axum::extract::State<Arc<Connection>>,
 ) -> (
     [(header::HeaderName, HeaderValue); 1],
-    Json<HashMap<&'static str, u32>>
+    Json<HashMap<&'static str, u32>>,
 ) {
     let today = Utc::now().format("%Y-%m-%d").to_string();
 
     let (count, right_count) = state
         .call(move |conn| {
-            let mut stmt = conn.prepare("SELECT count, right_count FROM day_counts WHERE day = ?1")?;
-            let result = stmt.query_row([&today], |row| {
-                Ok((row.get::<_, u32>(0)?, row.get::<_, u32>(1).unwrap_or(0)))
-            }).unwrap_or((0, 0));
+            let mut stmt =
+                conn.prepare("SELECT count, right_count FROM day_counts WHERE day = ?1")?;
+            let result = stmt
+                .query_row([&today], |row| {
+                    Ok((row.get::<_, u32>(0)?, row.get::<_, u32>(1).unwrap_or(0)))
+                })
+                .unwrap_or((0, 0));
             Ok(result)
         })
         .await
@@ -109,20 +114,21 @@ async fn get_today(
 
     // Cache for 1 minutes
     (
-        [(header::CACHE_CONTROL, HeaderValue::from_static("public, max-age=60"))],
-        Json(map)
+        [(
+            header::CACHE_CONTROL,
+            HeaderValue::from_static("public, max-age=60"),
+        )],
+        Json(map),
     )
 }
 
 async fn get_history(
     state: axum::extract::State<Arc<Connection>>,
-) -> (
-    [(header::HeaderName, HeaderValue); 1],
-    Json<Vec<DayCount>>
-) {
+) -> ([(header::HeaderName, HeaderValue); 1], Json<Vec<DayCount>>) {
     let history = state
         .call(|conn| {
-            let mut stmt = conn.prepare("SELECT day, count, right_count FROM day_counts ORDER BY day")?;
+            let mut stmt =
+                conn.prepare("SELECT day, count, right_count FROM day_counts ORDER BY day")?;
             let days = stmt
                 .query_map([], |row| {
                     Ok(DayCount {
@@ -139,8 +145,11 @@ async fn get_history(
 
     // Cache for 5 minutes
     (
-        [(header::CACHE_CONTROL, HeaderValue::from_static("public, max-age=300"))],
-        Json(history)
+        [(
+            header::CACHE_CONTROL,
+            HeaderValue::from_static("public, max-age=300"),
+        )],
+        Json(history),
     )
 }
 
@@ -176,7 +185,11 @@ async fn set_day(
             conn.execute(
                 "INSERT INTO day_counts (day, count, right_count) VALUES (?1, ?2, ?3)
                  ON CONFLICT(day) DO UPDATE SET count = ?2, right_count = ?3",
-                [&payload.day, &payload.count.to_string(), &right_count.to_string()],
+                [
+                    &payload.day,
+                    &payload.count.to_string(),
+                    &right_count.to_string(),
+                ],
             )?;
             Ok(())
         })
@@ -196,7 +209,7 @@ async fn log_pageview(
     // Only log GET requests to main page
     if method == "GET" && (path == "/" || path == "/index.html") {
         let timestamp = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
-        let log_entry = format!("{} - Pageview: {}\n", timestamp, path);
+        let log_entry = format!("{timestamp} - Pageview: {path}\n");
 
         // Append to log file - use /app/data on Fly.io, local file otherwise
         let log_path = if std::path::Path::new("/app/data").exists() {
@@ -205,11 +218,7 @@ async fn log_pageview(
             "pageviews.log"
         };
 
-        if let Ok(mut file) = OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(log_path)
-        {
+        if let Ok(mut file) = OpenOptions::new().create(true).append(true).open(log_path) {
             let _ = file.write_all(log_entry.as_bytes());
         }
     }
