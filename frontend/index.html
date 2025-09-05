@@ -7,18 +7,26 @@
   <link rel="stylesheet" href="style.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Kalam:wght@400;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Gaegu:wght@400;700&display=swap" rel="stylesheet">
 </head>
 <body>
   <main>
-    <h1>Claude Code said I'm <span class="highlight">absolutely right!</span></h1>
-    <div id="today" class="today-count" style="opacity: 0">0</div>
-    <p class="subtitle" style="opacity: 0">times today</p>
+    <h1>I'm <span class="highlight">absolutely right!</span></h1>
+    <p class="subtitle" style="opacity: 0">Claude Code said it <span id="today-inline">0</span> times today</p>
     <p id="right-count" class="right-count"></p>
 
     <section class="chart-section">
-      <h2>Count History</h2>
-      <svg id="chart"></svg>
+      <div id="chart"></div>
+      <div class="chart-legend">
+        <span class="legend-item">
+          <span class="legend-color" style="background: #e63946;"></span>
+          Absolutely right
+        </span>
+        <span class="legend-item">
+          <span class="legend-color" style="background: #ffc6c7;"></span>
+          Just right
+        </span>
+      </div>
     </section>
   </main>
   <footer>

@@ -1,51 +1,42 @@
-// Load rough.js
-import rough from "https://unpkg.com/roughjs@4.5.2/bundled/rough.esm.js";
-
 async function fetchToday(animate = false) {
 	try {
 		const res = await fetch("/api/today");
 		const data = await res.json();
-		const countElement = document.getElementById("today");
+		const countElement = document.getElementById("today-inline");
 		const subtitleElement = document.querySelector(".subtitle");
 		const rightCountElement = document.getElementById("right-count");
 
 		// Update right count display
 		if (data.right_count && data.right_count > 0) {
-			rightCountElement.textContent = `+ ${data.right_count} times just "right"`;
+			rightCountElement.textContent = `(+ ${data.right_count} times I was just "right")`;
 			rightCountElement.style.display = "block";
 		} else {
 			rightCountElement.style.display = "none";
 		}
 
 		if (animate && data.count > 0) {
-			// Show count - 1 first WITHOUT pulsating
-			countElement.classList.remove("pulsating");
+			// Show count - 1 first
 			countElement.textContent = data.count - 1;
 
-			// Fade in the elements
-			countElement.style.transition = "opacity 0.5s ease-in";
+			// Fade in the subtitle
 			subtitleElement.style.transition = "opacity 0.5s ease-in";
-			countElement.style.opacity = "1";
 			subtitleElement.style.opacity = "1";
 
 			// After a second, animate to the real count
 			setTimeout(() => {
-				countElement.style.transform = "scale(1.2)";
+				countElement.style.transform = "scale(1.3)";
+				countElement.style.color = "#e63946";
 				countElement.textContent = data.count;
 
-				// Reset the scale and start pulsating
+				// Reset the scale
 				setTimeout(() => {
 					countElement.style.transform = "";
-					countElement.classList.add("pulsating");
 				}, 300);
 			}, 1000);
 		} else {
 			countElement.textContent = data.count;
-			countElement.classList.add("pulsating");
 			// Fade in for non-animated load
-			countElement.style.transition = "opacity 0.5s ease-in";
 			subtitleElement.style.transition = "opacity 0.5s ease-in";
-			countElement.style.opacity = "1";
 			subtitleElement.style.opacity = "1";
 		}
 	} catch (error) {
@@ -85,303 +76,96 @@ async function fetchHistory() {
 }
 
 function drawChart(history) {
-	const svg = document.getElementById("chart");
-	svg.innerHTML = "";
+	const chartElement = document.getElementById("chart");
+	chartElement.innerHTML = "";
 
 	if (history.length === 0) return;
 
 	// Make chart dimensions responsive
-	const containerWidth = Math.min(window.innerWidth - 40, 800);
 	const isMobile = window.innerWidth <= 600;
-	const w = containerWidth;
-	const h = isMobile ? 250 : 300;
+	const containerWidth = Math.min(window.innerWidth - 40, 760);
+	const width = containerWidth;
+	const height = isMobile ? 300 : 350;
 
-	// Update SVG viewBox to match actual dimensions
-	svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
+	// Create container div for roughViz
+	const container = document.createElement('div');
+	container.id = 'chart-container';
+	chartElement.appendChild(container);
+	
+	// On mobile, show only last 5 days
+	const displayHistory = isMobile && history.length > 5 
+		? history.slice(-5) 
+		: history;
 
-	const padding = isMobile
-		? { top: 30, right: 20, bottom: 50, left: 50 }
-		: { top: 40, right: 60, bottom: 60, left: 100 };
-	const chartWidth = w - padding.left - padding.right;
-	const chartHeight = h - padding.top - padding.bottom;
-	// Calculate max from both counts
-	const maxAbsolute = Math.max(...history.map((d) => d.count)) || 0;
-	const maxRight = Math.max(...history.map((d) => d.right_count || 0)) || 0;
-	const max = Math.max(maxAbsolute, maxRight, 10);
-	const stepX = chartWidth / (history.length - 1 || 1);
+	// Prepare data in the format roughViz expects for stacked bars
+	const data = displayHistory.map((d, i) => {
+		const date = new Date(d.day);
+		// Show simplified labels on mobile since we have fewer bars
+		const label = isMobile
+			? date.toLocaleDateString("en-US", { month: "numeric", day: "numeric" })
+			: date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 
-	// Initialize rough.js
-	const rc = rough.svg(svg);
-
-	// Add white background with sketchy border
-	const bgRect = rc.rectangle(5, 5, w - 10, h - 10, {
-		fill: "white",
-		fillStyle: "solid",
-		stroke: "#d0d7de",
-		strokeWidth: 1.5,
-		roughness: 1.2,
-	});
-	svg.appendChild(bgRect);
-
-	// Draw horizontal grid lines with hand-drawn style
-	const yTicks = 6;
-	for (let i = 0; i <= yTicks; i++) {
-		const y = padding.top + (chartHeight / yTicks) * i;
-		const isBaseline = i === yTicks;
-
-		const line = rc.line(padding.left, y, w - padding.right, y, {
-			stroke: isBaseline ? "#6b7280" : "#e5e7eb",
-			strokeWidth: isBaseline ? 1.5 : 0.8,
-			roughness: 0.8,
-			bowing: 0.5,
-		});
-		svg.appendChild(line);
-	}
-
-	// Draw vertical axis
-	const yAxis = rc.line(
-		padding.left,
-		padding.top,
-		padding.left,
-		padding.top + chartHeight,
-		{
-			stroke: "#6b7280",
-			strokeWidth: 1.5,
-			roughness: 0.8,
-			bowing: 0.3,
-		},
-	);
-	svg.appendChild(yAxis);
-
-	// Prepare data points for both lines
-	const points = history.map((d, i) => ({
-		x: padding.left + i * stepX,
-		y: padding.top + chartHeight - (d.count / max) * chartHeight,
-		yRight: padding.top + chartHeight - ((d.right_count || 0) / max) * chartHeight,
-		count: d.count,
-		rightCount: d.right_count || 0,
-		day: d.day,
-	}));
-
-	// Draw the "just right" line (lighter, thinner) first
-	if (points.length > 1 && points.some(p => p.rightCount > 0)) {
-		for (let i = 0; i < points.length - 1; i++) {
-			const line = rc.line(
-				points[i].x,
-				points[i].yRight,
-				points[i + 1].x,
-				points[i + 1].yRight,
-				{
-					stroke: "#ffc6c7",  // Light pink
-					strokeWidth: 2,
-					roughness: 1.2,
-					bowing: 0.6,
-				},
-			);
-			svg.appendChild(line);
-		}
-	}
-
-	// Draw the main "absolutely right" line on top
-	if (points.length > 1) {
-		for (let i = 0; i < points.length - 1; i++) {
-			const line = rc.line(
-				points[i].x,
-				points[i].y,
-				points[i + 1].x,
-				points[i + 1].y,
-				{
-					stroke: "#e63946",
-					strokeWidth: 3,
-					roughness: 1.5,
-					bowing: 0.8,
-				},
-			);
-			svg.appendChild(line);
-		}
-	}
-
-	// Draw data points for "just right" line (if there's data)
-	if (points.some(p => p.rightCount > 0)) {
-		points.forEach((point) => {
-			if (point.rightCount > 0) {
-				const circleRight = rc.circle(point.x, point.yRight, 8, {
-					stroke: "#ffc6c7",
-					strokeWidth: 1.5,
-					fill: "#ffffff",
-					fillStyle: "solid",
-					roughness: 1,
-				});
-				svg.appendChild(circleRight);
-			}
-		});
-	}
-
-	// Draw data points for "absolutely right" line
-	points.forEach((point) => {
-		const circle = rc.circle(point.x, point.y, 10, {
-			stroke: "#e63946",
-			strokeWidth: 2,
-			fill: "#ffffff",
-			fillStyle: "solid",
-			roughness: 1.2,
-		});
-		svg.appendChild(circle);
-
-		// Add hover area for tooltip showing both counts
-		const hoverCircle = document.createElementNS(
-			"http://www.w3.org/2000/svg",
-			"circle",
-		);
-		hoverCircle.setAttribute("cx", point.x);
-		hoverCircle.setAttribute("cy", point.y);
-		hoverCircle.setAttribute("r", "8");
-		hoverCircle.setAttribute("fill", "transparent");
-		hoverCircle.setAttribute("style", "cursor: pointer");
-
-		const title = document.createElementNS(
-			"http://www.w3.org/2000/svg",
-			"title",
-		);
-		let tooltipText = `${point.day}\nAbsolutely right: ${point.count}`;
-		if (point.rightCount > 0) {
-			tooltipText += `\nJust right: ${point.rightCount}`;
-		}
-		title.textContent = tooltipText;
-		hoverCircle.appendChild(title);
-
-		svg.appendChild(hoverCircle);
+		return {
+			date: label,
+			'Absolutely right': d.count,
+			'Just right': d.right_count || 0
+		};
 	});
 
-	// Add Y-axis labels with hand-written style
-	for (let i = 0; i <= yTicks; i++) {
-		const value = Math.round((max / yTicks) * (yTicks - i));
-		const y = padding.top + (chartHeight / yTicks) * i;
+	console.log('Creating chart with data:', data);
 
-		const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
-		text.setAttribute("x", padding.left - 15);
-		text.setAttribute("y", y + 4);
-		text.setAttribute("text-anchor", "end");
-		text.setAttribute("font-size", isMobile ? "11" : "14");
-		text.setAttribute("fill", "#374151");
-		text.setAttribute(
-			"font-family",
-			"Kalam, 'Comic Sans MS', 'Marker Felt', cursive",
-		);
-		text.setAttribute(
-			"transform",
-			`rotate(-2, ${padding.left - 15}, ${y + 4})`,
-		);
-		text.textContent = value >= 1000 ? `${(value / 1000).toFixed(1)}k` : value;
-		svg.appendChild(text);
+	// Use roughViz for stacked bar chart - simpler config based on docs
+	console.log('roughViz available?', typeof roughViz !== 'undefined');
+	if (typeof roughViz === 'undefined') {
+		console.error('roughViz library not loaded!');
+		return;
 	}
-
-	// Y-axis label with hand-written style
-	const yLabel = document.createElementNS("http://www.w3.org/2000/svg", "text");
-	yLabel.setAttribute("x", 20);
-	yLabel.setAttribute("y", padding.top + chartHeight / 2);
-	yLabel.setAttribute(
-		"transform",
-		`rotate(-90, 20, ${padding.top + chartHeight / 2})`,
-	);
-	yLabel.setAttribute("text-anchor", "middle");
-	yLabel.setAttribute("font-size", isMobile ? "13" : "16");
-	yLabel.setAttribute("fill", "#1f2937");
-	yLabel.setAttribute(
-		"font-family",
-		"Kalam, 'Comic Sans MS', 'Marker Felt', cursive",
-	);
-	yLabel.textContent = "Times Right";
-	svg.appendChild(yLabel);
-
-	// X-axis label with hand-written style
-	const xLabel = document.createElementNS("http://www.w3.org/2000/svg", "text");
-	xLabel.setAttribute("x", padding.left + chartWidth / 2);
-	xLabel.setAttribute("y", h - 10);
-	xLabel.setAttribute("text-anchor", "middle");
-	xLabel.setAttribute("font-size", isMobile ? "13" : "16");
-	xLabel.setAttribute("fill", "#1f2937");
-	xLabel.setAttribute(
-		"font-family",
-		"Kalam, 'Comic Sans MS', 'Marker Felt', cursive",
-	);
-	xLabel.textContent = "Date";
-	svg.appendChild(xLabel);
-
-	// Add X-axis date labels with slight rotation for hand-written feel
-	if (history.length > 0) {
-		const xLabelCount = Math.min(6, history.length);
-		const xStep = Math.floor((history.length - 1) / (xLabelCount - 1));
-
-		for (let i = 0; i < xLabelCount; i++) {
-			const idx = i === xLabelCount - 1 ? history.length - 1 : i * xStep;
-			const d = history[idx];
-			const x = padding.left + idx * stepX;
-
-			const text = document.createElementNS(
-				"http://www.w3.org/2000/svg",
-				"text",
-			);
-			text.setAttribute("x", x);
-			text.setAttribute("y", h - padding.bottom + 25);
-			text.setAttribute("text-anchor", "middle");
-			text.setAttribute("font-size", isMobile ? "11" : "13");
-			text.setAttribute("fill", "#6b7280");
-			text.setAttribute(
-				"font-family",
-				"Kalam, 'Comic Sans MS', 'Marker Felt', cursive",
-			);
-			text.setAttribute(
-				"transform",
-				`rotate(${-5 + Math.random() * 10}, ${x}, ${h - padding.bottom + 25})`,
-			);
-
-			// Format date to show month/day
-			const date = new Date(d.day);
-			text.textContent = date.toLocaleDateString("en-US", {
-				month: "short",
-				day: "numeric",
-			});
-			svg.appendChild(text);
-		}
-	}
-
-	// Add a fun doodle or annotation
-	const annotation = document.createElementNS(
-		"http://www.w3.org/2000/svg",
-		"text",
-	);
-	annotation.setAttribute("x", w - 100);
-	annotation.setAttribute("y", 30);
-	annotation.setAttribute("text-anchor", "middle");
-	annotation.setAttribute("font-size", isMobile ? "12" : "14");
-	annotation.setAttribute("fill", "#9ca3af");
-	annotation.setAttribute(
-		"font-family",
-		"Kalam, 'Comic Sans MS', 'Marker Felt', cursive",
-	);
-	annotation.setAttribute("transform", `rotate(5, ${w - 100}, 30)`);
-	annotation.textContent = "Perfect!";
-	svg.appendChild(annotation);
+	
+	new roughViz.StackedBar({
+		element: '#chart-container',
+		data: data,
+		labels: 'date',
+		width: width,
+		height: height,
+		colors: ['#e63946', '#ffc6c7'],
+		roughness: 1.5,
+		font: 'Gaegu',
+		xLabel: '',
+		yLabel: isMobile ? '' : 'Times Right',
+		interactive: true,
+		tooltipFontSize: '0.95rem',
+		margin: isMobile
+			? { top: 20, right: 10, bottom: 60, left: 40 }
+			: { top: 30, right: 20, bottom: 70, left: 80 },
+		axisFontSize: isMobile ? '10' : '12',
+		axisStrokeWidth: isMobile ? 1 : 1.5,
+		strokeWidth: isMobile ? 1.5 : 2,
+	});
 }
 
 // Store history globally for redraw
 let currentHistory = [];
 
-// Initial load with animation
-fetchToday(true);
-fetchHistory().then(() => {
-	// Redraw chart on window resize
-	let resizeTimeout;
-	window.addEventListener("resize", () => {
-		clearTimeout(resizeTimeout);
-		resizeTimeout = setTimeout(() => {
-			if (currentHistory.length > 0) {
-				drawChart(currentHistory);
-			}
-		}, 250);
+// Load roughViz library
+const script = document.createElement('script');
+script.src = 'https://unpkg.com/rough-viz@2.0.5';
+script.onload = () => {
+	// Initial load with animation
+	fetchToday(true);
+	fetchHistory().then(() => {
+		// Redraw chart on window resize
+		let resizeTimeout;
+		window.addEventListener("resize", () => {
+			clearTimeout(resizeTimeout);
+			resizeTimeout = setTimeout(() => {
+				if (currentHistory.length > 0) {
+					drawChart(currentHistory);
+				}
+			}, 250);
+		});
 	});
-});
+};
+document.head.appendChild(script);
 
 // Refresh every 5 seconds (without animation)
 setInterval(() => fetchToday(false), 5000);

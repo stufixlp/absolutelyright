@@ -2,12 +2,13 @@ use axum::{
     routing::{get, post},
     Router, Json,
     middleware,
-    http::Request,
+    http::{Request, header, HeaderValue},
     response::Response,
 };
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 use tower_http::services::ServeDir;
+use tower_http::set_header::SetResponseHeaderLayer;
 use tokio_rusqlite::Connection;
 use std::fs::OpenOptions;
 use std::io::Write;
@@ -30,7 +31,7 @@ async fn main() {
         "counts.db"
     };
     let db = Connection::open(db_path).await.unwrap();
-    
+
     // Create table if it doesn't exist
     db.call(|conn| {
         conn.execute(
@@ -58,8 +59,21 @@ async fn main() {
         .route("/api/today", get(get_today))
         .route("/api/history", get(get_history))
         .route("/api/set", post(set_day))
-        // Serve static files from ./frontend
-        .nest_service("/", ServeDir::new("frontend"))
+        // Serve static files from ./frontend with cache control headers
+        .nest_service("/", ServeDir::new("frontend")
+            .append_index_html_on_directories(true))
+        .layer(SetResponseHeaderLayer::overriding(
+            header::CACHE_CONTROL,
+            HeaderValue::from_static("no-cache, no-store, must-revalidate"),
+        ))
+        .layer(SetResponseHeaderLayer::overriding(
+            header::PRAGMA,
+            HeaderValue::from_static("no-cache"),
+        ))
+        .layer(SetResponseHeaderLayer::overriding(
+            header::EXPIRES,
+            HeaderValue::from_static("0"),
+        ))
         .layer(middleware::from_fn(log_pageview))
         .with_state(db);
 
@@ -72,9 +86,12 @@ async fn main() {
 
 async fn get_today(
     state: axum::extract::State<Arc<Connection>>,
-) -> Json<HashMap<&'static str, u32>> {
+) -> (
+    [(header::HeaderName, HeaderValue); 1],
+    Json<HashMap<&'static str, u32>>
+) {
     let today = Utc::now().format("%Y-%m-%d").to_string();
-    
+
     let (count, right_count) = state
         .call(move |conn| {
             let mut stmt = conn.prepare("SELECT count, right_count FROM day_counts WHERE day = ?1")?;
@@ -89,12 +106,20 @@ async fn get_today(
     let mut map = HashMap::new();
     map.insert("count", count);
     map.insert("right_count", right_count);
-    Json(map)
+
+    // Cache for 1 minutes
+    (
+        [(header::CACHE_CONTROL, HeaderValue::from_static("public, max-age=60"))],
+        Json(map)
+    )
 }
 
 async fn get_history(
     state: axum::extract::State<Arc<Connection>>,
-) -> Json<Vec<DayCount>> {
+) -> (
+    [(header::HeaderName, HeaderValue); 1],
+    Json<Vec<DayCount>>
+) {
     let history = state
         .call(|conn| {
             let mut stmt = conn.prepare("SELECT day, count, right_count FROM day_counts ORDER BY day")?;
@@ -112,7 +137,11 @@ async fn get_history(
         .await
         .unwrap();
 
-    Json(history)
+    // Cache for 5 minutes
+    (
+        [(header::CACHE_CONTROL, HeaderValue::from_static("public, max-age=300"))],
+        Json(history)
+    )
 }
 
 #[derive(Deserialize)]
@@ -140,7 +169,7 @@ async fn set_day(
         }
     }
     // If ABSOLUTELYRIGHT_SECRET is not set, allow access (for local dev)
-    
+
     let right_count = payload.right_count.unwrap_or(0);
     state
         .call(move |conn| {
@@ -163,19 +192,19 @@ async fn log_pageview(
 ) -> Response<axum::body::Body> {
     let path = req.uri().path().to_string();
     let method = req.method().to_string();
-    
+
     // Only log GET requests to main page
     if method == "GET" && (path == "/" || path == "/index.html") {
         let timestamp = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
         let log_entry = format!("{} - Pageview: {}\n", timestamp, path);
-        
+
         // Append to log file - use /app/data on Fly.io, local file otherwise
         let log_path = if std::path::Path::new("/app/data").exists() {
             "/app/data/pageviews.log"
         } else {
             "pageviews.log"
         };
-        
+
         if let Ok(mut file) = OpenOptions::new()
             .create(true)
             .append(true)
@@ -184,6 +213,6 @@ async fn log_pageview(
             let _ = file.write_all(log_entry.as_bytes());
         }
     }
-    
+
     next.run(req).await
 }

@@ -16,16 +16,17 @@ from collections import defaultdict
 CLAUDE_PROJECTS_BASE = os.environ.get("CLAUDE_PROJECTS", os.path.expanduser("~/.claude/projects"))
 PATTERN = os.environ.get("PATTERN", r"You(?:'re| are) absolutely right")
 # For "You're right" without "absolutely"
-PATTERN_RIGHT = os.environ.get("PATTERN_RIGHT", r"You(?:'re| are) right(?!\s*about)")
+PATTERN_RIGHT = os.environ.get("PATTERN_RIGHT", r"You(?:'re| are) right")
 
 def upload_to_api(api_url, secret, date_str, count, right_count=None):
     """Upload counts to API"""
     try:
         data = {
-            "secret": secret,
             "day": date_str,
             "count": count
         }
+        if secret:
+            data["secret"] = secret
         if right_count is not None:
             data["right_count"] = right_count
             
